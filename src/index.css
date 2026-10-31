@@ -277,48 +277,6 @@
   pointer-events: none;
 }
 
-/* Pictures are blurred whenever they sit still and only sharpen while the
-   viewer presses and holds. Screen capture grabs the frame as it is, so a
-   shot taken without holding the picture contains the blurred version. The
-   blur has no transition: releasing the press must re-hide it instantly. */
-.rcess-photo-guard {
-  position: relative;
-  display: block;
-}
-.rcess-photo-guard .rcess-feed-photo {
-  filter: blur(24px) saturate(0.65);
-}
-.rcess-photo-guard.rcess-photo-revealed .rcess-feed-photo {
-  filter: none;
-}
-.rcess-photo-hint {
-  position: absolute;
-  left: 50%;
-  bottom: 0.75rem;
-  transform: translateX(-50%);
-  z-index: 1;
-  padding: 0.3rem 0.7rem;
-  border-radius: 999px;
-  border: 1px solid rgb(255 255 255 / 0.16);
-  background: rgb(0 0 0 / 0.62);
-  color: rgb(255 255 255 / 0.7);
-  font-size: 10px;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-  white-space: nowrap;
-  pointer-events: none;
-}
-.rcess-photo-guard.rcess-photo-revealed .rcess-photo-hint {
-  opacity: 0;
-}
-
-/* Capture guard: blur everything again for a moment when a capture key is
-   pressed or the app loses focus, even if a picture is being held open. The
-   revealed rule is just as specific, so this one is listed after it. */
-.rcess-capture-guard .rcess-photo-guard .rcess-feed-photo {
-  filter: blur(28px) saturate(0.55);
-}
-
 /* The surrounding post kills the long-press callout and text selection, so a
    phone user cannot lift the picture or caption out of the page either. */
 .rcess-feed-post {

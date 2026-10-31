@@ -567,75 +567,6 @@ function FeedDeleteButton({
   );
 }
 
-// Feed pictures stay blurred until the viewer presses and holds. A screen
-// capture always grabs whatever is on screen at that instant, so a shot taken
-// without holding the picture only ever contains the blurred frame. A long
-// hold is also swallowed so it does not double as a click into the post.
-function GuardedPhoto({
-  src,
-  alt,
-  className,
-  wrapperClassName = "",
-  interactive = true,
-}: {
-  src: string;
-  alt: string;
-  className: string;
-  wrapperClassName?: string;
-  interactive?: boolean;
-}) {
-  const [revealed, setRevealed] = useState(false);
-  const pressedAtRef = useRef(0);
-  const suppressClickRef = useRef(false);
-
-  const hide = () => setRevealed(false);
-
-  return (
-    <span
-      className={`rcess-photo-guard relative block ${revealed ? "rcess-photo-revealed" : ""} ${wrapperClassName}`}
-      onContextMenu={(event) => event.preventDefault()}
-      onPointerDown={(event) => {
-        if (!interactive) return;
-        if (event.pointerType === "mouse" && event.button !== 0) return;
-        pressedAtRef.current = Date.now();
-        suppressClickRef.current = false;
-        try {
-          event.currentTarget.setPointerCapture(event.pointerId);
-        } catch {
-          // Capture is a nicety; the pointerup on the wrapper still hides it.
-        }
-        setRevealed(true);
-      }}
-      onPointerUp={() => {
-        if (!interactive) return;
-        if (Date.now() - pressedAtRef.current > 350) suppressClickRef.current = true;
-        hide();
-      }}
-      onPointerCancel={hide}
-      onPointerLeave={hide}
-      onClickCapture={(event) => {
-        if (!suppressClickRef.current) return;
-        suppressClickRef.current = false;
-        event.preventDefault();
-        event.stopPropagation();
-      }}
-    >
-      <img
-        src={src}
-        alt={alt}
-        loading="lazy"
-        draggable={false}
-        className={`rcess-feed-photo ${className}`}
-      />
-      {interactive ? (
-        <span className="rcess-photo-hint" aria-hidden="true">
-          Press and hold to view
-        </span>
-      ) : null}
-    </span>
-  );
-}
-
 function EvaluationBuilder({
   form,
   onSave,
@@ -1955,7 +1886,6 @@ export default function Dashboard() {
   const [downloadingFeedPath, setDownloadingFeedPath] = useState<string | null>(null);
   const [feedConfirmId, setFeedConfirmId] = useState<string | null>(null);
   const [isFeedDeleting, setIsFeedDeleting] = useState(false);
-  const [captureGuard, setCaptureGuard] = useState(false);
   const [newsLimit, setNewsLimit] = useState(NEWS_PAGE_SIZE);
   const [schedulePlace, setSchedulePlace] = useState<{ id: string; title: string; place: string } | null>(null);
   const [geocodedPlace, setGeocodedPlace] = useState<MapLocation | null>(null);
@@ -2259,66 +2189,6 @@ export default function Dashboard() {
       cancelled = true;
     };
   }, [feedReloadTick, feedLimit, tab, isGuest]);
-
-  // Extra blur on top of the hold-to-view rule for the capture keys that do
-  // reach the page: PrintScreen (Windows/Linux), macOS Cmd+Shift+3/4/5, and
-  // Windows Win+Shift+S. Browsers that hand the shortcut straight to the OS
-  // never fire these, which is why the pictures are blurred by default.
-  useEffect(() => {
-    let releaseId: number | undefined;
-
-    const engage = () => {
-      window.clearTimeout(releaseId);
-      setCaptureGuard(true);
-      releaseId = window.setTimeout(() => setCaptureGuard(false), 1600);
-    };
-
-    const onKey = (event: KeyboardEvent) => {
-      const key = event.key;
-      const macCapture = event.metaKey && event.shiftKey && ["3", "4", "5"].includes(key);
-      const winSnip = event.metaKey && event.shiftKey && key.toLowerCase() === "s";
-      if (key === "PrintScreen" || macCapture || winSnip) engage();
-    };
-
-    const onBlur = () => {
-      window.clearTimeout(releaseId);
-      setCaptureGuard(true);
-    };
-
-    const onFocus = () => {
-      window.clearTimeout(releaseId);
-      releaseId = window.setTimeout(() => setCaptureGuard(false), 350);
-    };
-
-    const onVisibility = () => {
-      if (document.visibilityState === "hidden") onBlur();
-      else onFocus();
-    };
-
-    window.addEventListener("keydown", onKey, true);
-    window.addEventListener("keyup", onKey, true);
-    window.addEventListener("blur", onBlur);
-    window.addEventListener("focus", onFocus);
-    document.addEventListener("visibilitychange", onVisibility);
-
-    return () => {
-      window.clearTimeout(releaseId);
-      window.removeEventListener("keydown", onKey, true);
-      window.removeEventListener("keyup", onKey, true);
-      window.removeEventListener("blur", onBlur);
-      window.removeEventListener("focus", onFocus);
-      document.removeEventListener("visibilitychange", onVisibility);
-    };
-  }, []);
-
-  // The class lives on <html> so the open-post dialog, which Radix portals
-  // outside this component, is blurred too.
-  useEffect(() => {
-    const root = document.documentElement;
-    root.classList.toggle("rcess-capture-guard", captureGuard);
-
-    return () => root.classList.remove("rcess-capture-guard");
-  }, [captureGuard]);
 
   useEffect(() => {
     if (tab !== "profile" || isGuest || !session.username) return;
@@ -3177,30 +3047,24 @@ export default function Dashboard() {
                             className="rcess-feed-post rounded-2xl border border-white/10 bg-black/25 p-5 md:p-6"
                           >
                             <div className={post.imagePaths.length > 1 ? "grid gap-3 sm:grid-cols-2" : ""}>
-                              {post.imagePaths.slice(0, 2).map((path, photoIndex, preview) => {
-                                const extraPhotos = post.imagePaths.length - preview.length;
-                                return (
-                                  <button
-                                    key={path}
-                                    type="button"
-                                    onClick={() => setOpenFeedPost(post)}
-                                    onContextMenu={(event) => event.preventDefault()}
-                                    className="relative block w-full cursor-zoom-in text-left"
-                                    aria-label="Open post"
-                                  >
-                                    <GuardedPhoto
-                                      src={feedImageUrl(path)}
-                                      alt={post.caption || `Picture from ${post.postedBy}`}
-                                      className="max-h-[28rem] w-full rounded-xl border border-white/10 object-contain"
-                                    />
-                                    {photoIndex === preview.length - 1 && extraPhotos > 0 ? (
-                                      <span className="pointer-events-none absolute right-2 top-2 rounded-full border border-white/15 bg-black/70 px-2.5 py-1 text-[10px] uppercase tracking-[0.12em] text-white/80">
-                                        +{extraPhotos} more
-                                      </span>
-                                    ) : null}
-                                  </button>
-                                );
-                              })}
+                              {post.imagePaths.map((path) => (
+                                <button
+                                  key={path}
+                                  type="button"
+                                  onClick={() => setOpenFeedPost(post)}
+                                  onContextMenu={(event) => event.preventDefault()}
+                                  className="block w-full cursor-zoom-in text-left"
+                                  aria-label="Open post"
+                                >
+                                  <img
+                                    src={feedImageUrl(path)}
+                                    alt={post.caption || `Picture from ${post.postedBy}`}
+                                    loading="lazy"
+                                    draggable={false}
+                                    className="rcess-feed-photo max-h-[28rem] w-full rounded-xl border border-white/10 object-contain"
+                                  />
+                                </button>
+                              ))}
                             </div>
                             {post.imagePaths.length === 0 ? (
                               <button
@@ -4766,12 +4630,12 @@ export default function Dashboard() {
                               className="rcess-feed-post flex w-full cursor-zoom-in items-start gap-4 rounded-xl border border-white/10 bg-black/20 p-3 text-left hover:border-cyan-300/40"
                             >
                               {post.imagePaths.length ? (
-                                <GuardedPhoto
+                                <img
                                   src={feedImageUrl(post.imagePaths[0])}
                                   alt={post.caption || `Picture from ${post.postedBy}`}
-                                  interactive={false}
-                                  wrapperClassName="h-20 w-20 shrink-0"
-                                  className="h-full w-full rounded-lg border border-white/10 object-cover"
+                                  loading="lazy"
+                                  draggable={false}
+                                  className="rcess-feed-photo h-20 w-20 shrink-0 rounded-lg border border-white/10 object-cover"
                                 />
                               ) : (
                                 <div className="flex h-20 w-20 shrink-0 items-center justify-center rounded-lg border border-white/10 bg-white/5 text-[10px] uppercase tracking-[0.14em] text-white/40">
@@ -5270,10 +5134,11 @@ export default function Dashboard() {
                           onContextMenu={(event) => event.preventDefault()}
                           className="rounded-xl"
                         >
-                          <GuardedPhoto
+                          <img
                             src={feedImageUrl(path)}
                             alt={openFeedPost.caption || "Feed picture"}
-                            className="max-h-[60vh] w-full rounded-xl border border-white/10 object-contain"
+                            draggable={false}
+                            className="rcess-feed-photo max-h-[60vh] w-full rounded-xl border border-white/10 object-contain"
                           />
                         </div>
                       ))}
