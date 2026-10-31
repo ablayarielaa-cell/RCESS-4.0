@@ -439,7 +439,7 @@ function FeedComposer({
 
   return (
     <div className="flex min-h-0 flex-1 flex-col gap-4">
-      <div className="min-h-0 flex-1 space-y-4 overflow-y-auto pr-1">
+      <div className="rcess-composer-scroll min-h-0 flex-1 space-y-4 overflow-y-auto">
         <div className="grid gap-2">
           <label className="text-xs tracking-[0.18em] text-white/60">
             PICTURES (OPTIONAL · UP TO {MAX_FEED_IMAGES})
