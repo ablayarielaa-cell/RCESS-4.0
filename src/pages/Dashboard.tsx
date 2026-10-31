@@ -230,18 +230,18 @@ async function copyTextToClipboard(text: string): Promise<boolean> {
 
 function PortalHeader() {
   return (
-    <div data-tour-target="welcome" className="flex items-start justify-between gap-6">
-      <div className="flex items-center gap-4">
+    <div data-tour-target="welcome" className="flex flex-wrap items-start justify-between gap-4 sm:gap-6">
+      <div className="flex min-w-0 items-center gap-3 sm:gap-4">
         <div className="rcess-logoWrap">
           <img
             src={logo}
             alt="Organization logo"
-            className="h-30 w-30 rounded-full bg-white object-contain p-1"
+            className="h-20 w-20 shrink-0 rounded-full bg-white object-contain p-1 sm:h-24 sm:w-24 md:h-30 md:w-30"
           />
         </div>
-        <div>
+        <div className="min-w-0">
           <div className="text-[11px] tracking-[0.45em] text-cyan-300/80">PARSU • RCESS</div>
-          <div className="mt-1 text-3xl font-semibold tracking-tight">Regional Civil Engineering Student Summit</div>
+          <div className="mt-1 text-2xl font-semibold tracking-tight sm:text-3xl">Regional Civil Engineering Student Summit</div>
           <div className="mt-0.5 text-sm text-white/55">Dashboard</div>
         </div>
       </div>

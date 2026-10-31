@@ -59,7 +59,7 @@ export default function Login() {
               <img
                 src={logo}
                 alt="Organization logo"
-                className="h-30 w-30 rounded-full bg-white object-contain p-1"
+                className="h-20 w-20 shrink-0 rounded-full bg-white object-contain p-1 sm:h-24 sm:w-24 md:h-30 md:w-30"
               />
             </div>
 

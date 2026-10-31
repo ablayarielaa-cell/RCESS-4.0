@@ -289,17 +289,17 @@ export default function Home() {
                 <img
                   src={logo}
                   alt="RCESS organization logo"
-                  className="h-30 w-30 rounded-full bg-white object-contain p-1 transition-transform duration-200 group-active:scale-[0.98]"
+                  className="h-20 w-20 shrink-0 rounded-full bg-white object-contain p-1 transition-transform duration-200 group-active:scale-[0.98] sm:h-24 sm:w-24 md:h-30 md:w-30"
                 />
               </button>
             </div>
 
-            <div>
+            <div className="min-w-0">
               <div className="text-[11px] tracking-[0.45em] text-cyan-300/80">
                 PARSU • RCESS
               </div>
 
-              <div className="mt-1 text-3xl font-semibold tracking-tight">
+              <div className="mt-1 text-2xl font-semibold tracking-tight sm:text-3xl">
                 Regional Civil Engineering Students Summit
               </div>
 

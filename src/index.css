@@ -179,6 +179,8 @@
 
   /* Header logo container (small framed plate) */
   .rcess-logoWrap {
+    flex: 0 0 auto;
+    width: fit-content;
     border-radius: 1rem;
     padding: 10px;
     background: linear-gradient(
