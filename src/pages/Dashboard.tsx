@@ -3074,7 +3074,7 @@ export default function Dashboard() {
                                       }
                                     />
                                     {showsMore ? (
-                                      <span className="pointer-events-none absolute right-2 top-2 rounded-full border border-white/15 bg-black/70 px-2.5 py-1 text-[10px] uppercase tracking-[0.12em] text-white/80">
+                                      <span className="pointer-events-none absolute inset-0 flex items-center justify-center rounded-xl bg-black/55 text-xl font-semibold tracking-[0.06em] text-white/90 sm:text-3xl">
                                         +{hiddenCount} more
                                       </span>
                                     ) : null}
