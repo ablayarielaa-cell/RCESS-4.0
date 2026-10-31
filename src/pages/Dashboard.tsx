@@ -507,7 +507,7 @@ function FeedComposer({
         </div>
       </div>
 
-      <div className="-mx-6 -mb-6 flex shrink-0 justify-end border-t border-white/10 bg-[#070b22]/95 px-6 py-3">
+      <div className="-mx-6 -mb-6 flex shrink-0 justify-end border-t border-white/10 px-6 py-3">
         <Button
           className="bg-cyan-300 text-black hover:bg-cyan-200"
           disabled={(files.length === 0 && !caption.trim()) || isPosting}
