@@ -438,74 +438,76 @@ function FeedComposer({
   }
 
   return (
-    <div className="grid gap-4">
-      <div className="grid gap-2">
-        <label className="text-xs tracking-[0.18em] text-white/60">
-          PICTURES (OPTIONAL · UP TO {MAX_FEED_IMAGES})
-        </label>
-        <input
-          type="file"
-          multiple
-          accept="image/png,image/jpeg,image/webp"
-          className="block w-full text-sm text-white file:mr-4 file:rounded-lg file:border-0 file:bg-cyan-300 file:px-4 file:py-2 file:text-black file:hover:bg-cyan-200"
-          onChange={(event) => {
-            addFiles(Array.from(event.target.files ?? []));
-            event.target.value = "";
-          }}
-        />
-        {files.length > 0 ? (
-          <div className="mt-2 text-xs text-white/45">
-            {files.length} of {MAX_FEED_IMAGES} {files.length === 1 ? "picture" : "pictures"} selected
-            <div className="mt-3 flex max-h-[38vh] flex-wrap content-start gap-3 overflow-y-auto pr-1">
-              {files.map((file, index) => (
-                <div key={`${file.name}-${index}`} className="w-28">
-                  <div className="relative">
-                    <img
-                      src={previews[index]}
-                      alt={file.name}
-                      className="h-28 w-28 rounded-xl border border-white/10 object-cover"
-                    />
-                    <button
-                      type="button"
-                      onClick={() => removeFile(index)}
-                      aria-label={`Remove ${file.name}`}
-                      className="absolute right-1 top-1 rounded-md border border-white/20 bg-black/70 px-2 py-0.5 text-[11px] text-white hover:bg-black/90"
-                    >
-                      Remove
-                    </button>
+    <div className="flex min-h-0 flex-1 flex-col gap-4">
+      <div className="min-h-0 flex-1 space-y-4 overflow-y-auto pr-1">
+        <div className="grid gap-2">
+          <label className="text-xs tracking-[0.18em] text-white/60">
+            PICTURES (OPTIONAL · UP TO {MAX_FEED_IMAGES})
+          </label>
+          <input
+            type="file"
+            multiple
+            accept="image/png,image/jpeg,image/webp"
+            className="block w-full text-sm text-white file:mr-4 file:rounded-lg file:border-0 file:bg-cyan-300 file:px-4 file:py-2 file:text-black file:hover:bg-cyan-200"
+            onChange={(event) => {
+              addFiles(Array.from(event.target.files ?? []));
+              event.target.value = "";
+            }}
+          />
+          {files.length > 0 ? (
+            <div className="mt-2 text-xs text-white/45">
+              {files.length} of {MAX_FEED_IMAGES} {files.length === 1 ? "picture" : "pictures"} selected
+              <div className="mt-3 flex flex-wrap content-start gap-3 pr-1">
+                {files.map((file, index) => (
+                  <div key={`${file.name}-${index}`} className="w-28">
+                    <div className="relative">
+                      <img
+                        src={previews[index]}
+                        alt={file.name}
+                        className="h-28 w-28 rounded-xl border border-white/10 object-cover"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => removeFile(index)}
+                        aria-label={`Remove ${file.name}`}
+                        className="absolute right-1 top-1 rounded-md border border-white/20 bg-black/70 px-2 py-0.5 text-[11px] text-white hover:bg-black/90"
+                      >
+                        Remove
+                      </button>
+                    </div>
+                    <div className="mt-1 truncate" title={file.name}>{file.name}</div>
                   </div>
-                  <div className="mt-1 truncate" title={file.name}>{file.name}</div>
-                </div>
-              ))}
+                ))}
+              </div>
+              <Button
+                variant="outline"
+                size="sm"
+                className="mt-3 border-white/20 bg-transparent text-white hover:bg-white/10"
+                onClick={clearFiles}
+              >
+                Clear
+              </Button>
             </div>
-            <Button
-              variant="outline"
-              size="sm"
-              className="mt-3 border-white/20 bg-transparent text-white hover:bg-white/10"
-              onClick={clearFiles}
-            >
-              Clear
-            </Button>
-          </div>
-        ) : (
-          <div className="text-xs text-white/40">
-            Pick them all at once, or add more in a second pick. Skip this to post a caption on its own. JPG, PNG or WebP, resized before upload.
-          </div>
-        )}
+          ) : (
+            <div className="text-xs text-white/40">
+              Pick them all at once, or add more in a second pick. Skip this to post a caption on its own. JPG, PNG or WebP, resized before upload.
+            </div>
+          )}
+        </div>
+
+        <div className="grid gap-2">
+          <label className="text-xs tracking-[0.18em] text-white/60">CAPTION</label>
+          <Textarea
+            value={caption}
+            rows={3}
+            placeholder="Say something about the pictures, or post just this text…"
+            className="bg-black/30 border-white/15 text-white placeholder:text-white/35"
+            onChange={(event) => setCaption(event.target.value)}
+          />
+        </div>
       </div>
 
-      <div className="grid gap-2">
-        <label className="text-xs tracking-[0.18em] text-white/60">CAPTION</label>
-        <Textarea
-          value={caption}
-          rows={3}
-          placeholder="Say something about the pictures, or post just this text…"
-          className="bg-black/30 border-white/15 text-white placeholder:text-white/35"
-          onChange={(event) => setCaption(event.target.value)}
-        />
-      </div>
-
-      <div className="sticky bottom-0 z-10 -mx-6 -mb-6 flex justify-end border-t border-white/10 bg-[#070b22]/95 px-6 py-3">
+      <div className="-mx-6 -mb-6 flex shrink-0 justify-end border-t border-white/10 bg-[#070b22]/95 px-6 py-3">
         <Button
           className="bg-cyan-300 text-black hover:bg-cyan-200"
           disabled={(files.length === 0 && !caption.trim()) || isPosting}
@@ -2998,8 +3000,8 @@ export default function Dashboard() {
                                 Add post
                               </Button>
                             </DialogTrigger>
-                            <DialogContent className="max-h-[90vh] overflow-y-auto bg-black/80 border-white/15 text-white">
-                              <DialogHeader><DialogTitle>Add post</DialogTitle></DialogHeader>
+                            <DialogContent className="rcess-composer-dialog bg-black/80 border-white/15 text-white">
+                              <DialogHeader className="shrink-0"><DialogTitle>Add post</DialogTitle></DialogHeader>
                               <FeedComposer
                                 postedBy={session.username ?? role}
                                 onPosted={() => {
@@ -4592,8 +4594,8 @@ export default function Dashboard() {
                                 Add post
                               </Button>
                             </DialogTrigger>
-                            <DialogContent className="max-h-[90vh] overflow-y-auto border-white/15 bg-black/80 text-white">
-                              <DialogHeader><DialogTitle>Add post</DialogTitle></DialogHeader>
+                            <DialogContent className="rcess-composer-dialog border-white/15 bg-black/80 text-white">
+                              <DialogHeader className="shrink-0"><DialogTitle>Add post</DialogTitle></DialogHeader>
                               <FeedComposer
                                 postedBy={session.username ?? role}
                                 onPosted={() => {

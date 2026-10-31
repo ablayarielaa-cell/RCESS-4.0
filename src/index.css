@@ -285,6 +285,18 @@
   -webkit-touch-callout: none;
 }
 
+/* Composer dialogs take a definite height so the picture list can scroll
+   independently and the Post bar stays pinned to the bottom. Unlayered on
+   purpose: it must win over the dialog's built-in `grid` utility. dvh keeps
+   the box inside the visible area while a phone browser's URL bar moves. */
+.rcess-composer-dialog {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  max-height: 90vh;
+  max-height: 90dvh;
+}
+
 @media print {
   .rcess-feed-photo,
   .rcess-feed-post {
