@@ -4975,7 +4975,7 @@ export default function Dashboard() {
                                 Edit events
                               </Button>
                             </DialogTrigger>
-                            <DialogContent className="max-h-[90vh] overflow-y-auto border-white/15 bg-black/85 text-white">
+                            <DialogContent className="rcess-scroll max-h-[90vh] overflow-y-auto border-white/15 bg-black/85 text-white">
                               <DialogHeader>
                                 <DialogTitle>Events and points</DialogTitle>
                               </DialogHeader>
