@@ -456,7 +456,7 @@ function FeedComposer({
         {files.length > 0 ? (
           <div className="mt-2 text-xs text-white/45">
             {files.length} of {MAX_FEED_IMAGES} {files.length === 1 ? "picture" : "pictures"} selected
-            <div className="mt-3 flex flex-wrap gap-3">
+            <div className="mt-3 flex max-h-[38vh] flex-wrap content-start gap-3 overflow-y-auto pr-1">
               {files.map((file, index) => (
                 <div key={`${file.name}-${index}`} className="w-28">
                   <div className="relative">
@@ -505,7 +505,7 @@ function FeedComposer({
         />
       </div>
 
-      <div className="flex justify-end">
+      <div className="sticky bottom-0 z-10 -mx-6 -mb-6 flex justify-end border-t border-white/10 bg-[#070b22]/95 px-6 py-3">
         <Button
           className="bg-cyan-300 text-black hover:bg-cyan-200"
           disabled={(files.length === 0 && !caption.trim()) || isPosting}
@@ -3128,7 +3128,7 @@ export default function Dashboard() {
                                 Add post
                               </Button>
                             </DialogTrigger>
-                            <DialogContent className="bg-black/80 border-white/15 text-white">
+                            <DialogContent className="max-h-[90vh] overflow-y-auto bg-black/80 border-white/15 text-white">
                               <DialogHeader><DialogTitle>Add post</DialogTitle></DialogHeader>
                               <FeedComposer
                                 postedBy={session.username ?? role}
@@ -3177,22 +3177,30 @@ export default function Dashboard() {
                             className="rcess-feed-post rounded-2xl border border-white/10 bg-black/25 p-5 md:p-6"
                           >
                             <div className={post.imagePaths.length > 1 ? "grid gap-3 sm:grid-cols-2" : ""}>
-                              {post.imagePaths.map((path) => (
-                                <button
-                                  key={path}
-                                  type="button"
-                                  onClick={() => setOpenFeedPost(post)}
-                                  onContextMenu={(event) => event.preventDefault()}
-                                  className="block w-full cursor-zoom-in text-left"
-                                  aria-label="Open post"
-                                >
-                                  <GuardedPhoto
-                                    src={feedImageUrl(path)}
-                                    alt={post.caption || `Picture from ${post.postedBy}`}
-                                    className="max-h-[28rem] w-full rounded-xl border border-white/10 object-contain"
-                                  />
-                                </button>
-                              ))}
+                              {post.imagePaths.slice(0, 2).map((path, photoIndex, preview) => {
+                                const extraPhotos = post.imagePaths.length - preview.length;
+                                return (
+                                  <button
+                                    key={path}
+                                    type="button"
+                                    onClick={() => setOpenFeedPost(post)}
+                                    onContextMenu={(event) => event.preventDefault()}
+                                    className="relative block w-full cursor-zoom-in text-left"
+                                    aria-label="Open post"
+                                  >
+                                    <GuardedPhoto
+                                      src={feedImageUrl(path)}
+                                      alt={post.caption || `Picture from ${post.postedBy}`}
+                                      className="max-h-[28rem] w-full rounded-xl border border-white/10 object-contain"
+                                    />
+                                    {photoIndex === preview.length - 1 && extraPhotos > 0 ? (
+                                      <span className="pointer-events-none absolute right-2 top-2 rounded-full border border-white/15 bg-black/70 px-2.5 py-1 text-[10px] uppercase tracking-[0.12em] text-white/80">
+                                        +{extraPhotos} more
+                                      </span>
+                                    ) : null}
+                                  </button>
+                                );
+                              })}
                             </div>
                             {post.imagePaths.length === 0 ? (
                               <button
