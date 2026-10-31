@@ -137,6 +137,9 @@ import type {
 
 const NEWS_PAGE_SIZE = 30;
 
+// How often the portal pulls the latest cloud copy on its own.
+const AUTO_REFRESH_MS = 5 * 60 * 1000;
+
 const TOUR_TAB_KEYS = ["news", "feed", "summit", "leaderboard", "bracketing", "schedule", "map", "evaluation", "settings"];
 
 function formatPosted(iso: string) {
@@ -2112,6 +2115,54 @@ export default function Dashboard() {
 
     return () => {
       cancelled = true;
+    };
+  }, []);
+
+  // Every five minutes the portal pulls the latest cloud copy so viewers see
+  // other people's edits without a manual reload. A tick is skipped while the
+  // admin is typing, a dialog is open, or a write is still on its way up, so
+  // the refresh never overwrites work in progress.
+  useEffect(() => {
+    let lastRefresh = Date.now();
+
+    const refresh = () => {
+      if (document.visibilityState !== "visible") return;
+      if (isPushingRef.current || pendingPushRef.current) return;
+      if (document.querySelector('[role="dialog"][data-state="open"], [role="alertdialog"][data-state="open"]')) return;
+
+      const active = document.activeElement as HTMLElement | null;
+      const typing =
+        active?.tagName === "INPUT" ||
+        active?.tagName === "TEXTAREA" ||
+        Boolean(active?.isContentEditable);
+      if (typing) return;
+
+      lastRefresh = Date.now();
+
+      fetchStore()
+        .then((cloud) => {
+          cloudBaselineRef.current = cloud;
+          setStore(cloud);
+          saveStore(cloud);
+          setPullError("");
+        })
+        .catch(() => {
+          // Keep the last good copy on screen; the next tick retries.
+        });
+
+      setFeedReloadTick((tick) => tick + 1);
+      setMyPostsTick((tick) => tick + 1);
+    };
+
+    const interval = window.setInterval(refresh, AUTO_REFRESH_MS);
+    const onVisible = () => {
+      if (Date.now() - lastRefresh >= AUTO_REFRESH_MS) refresh();
+    };
+    document.addEventListener("visibilitychange", onVisible);
+
+    return () => {
+      window.clearInterval(interval);
+      document.removeEventListener("visibilitychange", onVisible);
     };
   }, []);
 
