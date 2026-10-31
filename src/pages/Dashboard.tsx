@@ -83,6 +83,12 @@ import {
   payoutsForBrackets,
   leaderboardWithPayouts,
   propagateBracket,
+  rankedStandings,
+  standingsOf,
+  categoryScoreRows,
+  categoryView,
+  isCategoryView,
+  categoryViewLabel,
 } from "@/lib/store";
 import { fromDateTimeInput, toDateTimeInput } from "@/lib/datetime";
 import { fetchStore, persistStore } from "@/lib/storeCloud";
@@ -114,6 +120,7 @@ import {
 } from "@/lib/evaluation";
 import type {
   Bracket,
+  BracketFormat,
   EvaluationForm,
   EventCategory,
   MapInfo,
@@ -136,6 +143,18 @@ function formatPosted(iso: string) {
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return iso;
   return d.toLocaleString();
+}
+
+function bracketFormatLabel(format: BracketFormat) {
+  if (format === "double") return "Double elimination";
+  if (format === "points") return "Points ranking";
+  return "Single elimination";
+}
+
+function scoreViewLabel(view: string) {
+  if (view === "Overall") return "Overall score";
+  if (isCategoryView(view)) return `${categoryViewLabel(view)} · all events`;
+  return `${view} score`;
 }
 
 function scheduleWindowBadge(post: MatchSchedulePost, now: Date): string | null {
@@ -1442,12 +1461,13 @@ function BracketEditor({
 }) {
   const eventNames = eventNamesOf(categories);
   const [sport, setSport] = useState<Sport>(value?.sport ?? eventNames[0] ?? "");
-  const [format, setFormat] = useState<"single" | "double">((value as any)?.format ?? "single");
+  const [format, setFormat] = useState<BracketFormat>(value?.format ?? "single");
   const [name, setName] = useState(value?.name ?? "");
   const [teamsText, setTeamsText] = useState(
     (value?.teams ?? []).join("\n") || "Team A\nTeam B"
   );
   const chosen = categoryOfEvent(categories, sport);
+  const isPoints = format === "points";
 
   return (
     <div className="grid gap-4">
@@ -1496,11 +1516,13 @@ function BracketEditor({
           <SelectContent>
             <SelectItem value="single">Single elimination</SelectItem>
             <SelectItem value="double">Double elimination</SelectItem>
+            <SelectItem value="points">Points ranking (no bracket)</SelectItem>
           </SelectContent>
         </Select>
         <div className="text-xs text-white/35">
-          Double elimination drops losers into a second bracket; the winners-bracket champion
-          then meets the last team standing there in the grand final.
+          {isPoints
+            ? "For events like quiz bee that are decided by points instead of matchups. The ranking sorts itself highest first and pays the category's award tiers."
+            : "Double elimination drops losers into a second bracket; the winners-bracket champion then meets the last team standing there in the grand final."}
         </div>
       </div>
 
@@ -1515,7 +1537,9 @@ function BracketEditor({
       </div>
 
       <div className="grid gap-2">
-        <label className="text-xs tracking-[0.18em] text-white/60">TEAMS (ONE PER LINE)</label>
+        <label className="text-xs tracking-[0.18em] text-white/60">
+          {isPoints ? "PARTICIPANTS (ONE PER LINE)" : "TEAMS (ONE PER LINE)"}
+        </label>
         <Textarea
           value={teamsText}
           onChange={(e) => setTeamsText(e.target.value)}
@@ -1540,9 +1564,32 @@ function BracketEditor({
               return;
             }
             if (teams.length < 2) {
-              toast.error("Add at least 2 teams");
+              toast.error(isPoints ? "Add at least 2 participants" : "Add at least 2 teams");
               return;
             }
+
+            if (isPoints) {
+              // Scores already typed for a participant survive a rename of the
+              // bracket and drop away with participants that were removed.
+              const recorded = new Map(
+                (value?.standings ?? []).map((row) => [row.team, row.points]),
+              );
+
+              onSave({
+                id: value?.id ?? nanoId(),
+                sport,
+                name: name.trim(),
+                format,
+                teams,
+                rounds: [],
+                standings: teams.map((team) => ({
+                  team,
+                  points: recorded.get(team) ?? 0,
+                })),
+              });
+              return;
+            }
+
             const rounds = buildSingleElimRounds(teams);
             const extras = format === "double" ? buildDoubleElimExtras(teams) : null;
             const bracket: Bracket = {
@@ -1721,6 +1768,66 @@ function BracketRoundColumns({
   );
 }
 
+function PointsRanking({
+  bracket,
+  category,
+  canEdit,
+  onPoints,
+}: {
+  bracket: Bracket;
+  category: EventCategory | null;
+  canEdit: boolean;
+  onPoints: (team: string, rawValue: string) => void;
+}) {
+  const ranked = rankedStandings(bracket, category);
+  const decided = ranked.some((row) => row.points > 0);
+
+  return (
+    <div className="mt-4">
+      <div className="text-xs tracking-[0.25em] text-white/55">POINTS RANKING</div>
+
+      <div className="mt-2 grid gap-2">
+        {ranked.map((row) => (
+          <div
+            key={row.team}
+            className="flex flex-wrap items-center gap-3 rounded-lg border border-white/10 bg-black/30 px-3 py-2"
+          >
+            <div className="w-8 shrink-0 text-sm font-semibold text-white/60">#{row.rank}</div>
+
+            <div className="min-w-0 flex-1">
+              <div className="truncate text-sm">{row.team}</div>
+              {row.label ? (
+                <div className="text-[11px] text-cyan-200/70">
+                  {row.label} · {row.awardPoints} pts
+                </div>
+              ) : null}
+            </div>
+
+            <Input
+              type="number"
+              step={1}
+              defaultValue={row.points}
+              disabled={!canEdit}
+              aria-label={`${row.team} points`}
+              title={!canEdit ? "No permission" : undefined}
+              onBlur={(event) => onPoints(row.team, event.target.value)}
+              onKeyDown={(event) => {
+                if (event.key === "Enter") (event.target as HTMLInputElement).blur();
+              }}
+              className="w-24 border-white/15 bg-black/30 text-right text-white disabled:opacity-60"
+            />
+          </div>
+        ))}
+      </div>
+
+      <div className="mt-2 text-xs text-white/35">
+        {decided
+          ? "Sorted by points, highest first. Ties share a place and the category's award tier."
+          : "Enter points to decide the ranking. Nothing is paid to the Leaderboard until someone scores."}
+      </div>
+    </div>
+  );
+}
 
 function describeSyncError(error: unknown): string {
   const message =
@@ -1758,6 +1865,7 @@ export default function Dashboard() {
   const [mapEditorFocus, setMapEditorFocus] = useState<string | null>(null);
   const [isMapManagerOpen, setMapManagerOpen] = useState(false);
   const [bracketSportFilter, setBracketSportFilter] = useState<"ALL" | string>("ALL");
+  const [bracketCategoryFilter, setBracketCategoryFilter] = useState<"ALL" | string>("ALL");
   const [isNewBracketOpen, setNewBracketOpen] = useState(false);
   const [bracketToEdit, setBracketToEdit] = useState<string | null>(null);
   const [isPayoutDialogOpen, setPayoutDialogOpen] = useState(false);
@@ -1775,6 +1883,7 @@ export default function Dashboard() {
   const [downloadingFeedPath, setDownloadingFeedPath] = useState<string | null>(null);
   const [feedConfirmId, setFeedConfirmId] = useState<string | null>(null);
   const [isFeedDeleting, setIsFeedDeleting] = useState(false);
+  const [captureGuard, setCaptureGuard] = useState(false);
   const [newsLimit, setNewsLimit] = useState(NEWS_PAGE_SIZE);
   const [schedulePlace, setSchedulePlace] = useState<{ id: string; title: string; place: string } | null>(null);
   const [geocodedPlace, setGeocodedPlace] = useState<MapLocation | null>(null);
@@ -1919,7 +2028,7 @@ export default function Dashboard() {
       { target: "feed", tab: "feed", title: "News Feed", description: "The feed is where the event is shared as it happens." },
       { target: "feed-add", tab: "feed", title: "Posting to the feed", description: "Select Add post. One post can carry up to 10 pictures: pick them all at once, or add more in a second pick and remove any you change your mind about. A caption on its own is allowed too." },
       { target: "summit", tab: "summit", title: "Emergency Hotline", description: "Find emergency service contacts here. Tap a phone number to call it when your device supports phone links. Scroll down if there are multiple hotline contacts." },
-      { target: "leaderboard", tab: "leaderboard", title: "Leaderboard", description: "Check team standings and points. Use the score-view dropdown to switch between the overall scoreboard and each event." },
+      { target: "leaderboard", tab: "leaderboard", title: "Leaderboard", description: "Check team standings and points. Use the score-view dropdown to switch between the overall scoreboard, each category's total, and each event." },
       { target: "bracketing", tab: "bracketing", title: "Bracketing", description: "Follow the tournament bracket and see how teams progress through the rounds." },
       { target: "schedule", tab: "schedule", title: "Schedule", description: "Review the schedule for the current event day." },
       { target: "map", tab: "map", title: "Map", description: "View the venue or location information provided by the organizers." },
@@ -2030,6 +2139,62 @@ export default function Dashboard() {
       cancelled = true;
     };
   }, [feedReloadTick, feedLimit, tab, isGuest]);
+
+  // Blur feed pictures while a capture is underway: the app loses focus when
+  // the OS screenshot sheet or screen recorder comes up, and the screenshot
+  // shortcuts fire a keydown first. This cannot stop a hardware capture, but
+  // whatever lands in the file is blurred rather than the picture itself.
+  useEffect(() => {
+    let releaseId: number | undefined;
+
+    const engage = () => {
+      window.clearTimeout(releaseId);
+      setCaptureGuard(true);
+      releaseId = window.setTimeout(() => setCaptureGuard(false), 1600);
+    };
+
+    const onKeyDown = (event: KeyboardEvent) => {
+      const macCapture = event.metaKey && event.shiftKey && ["3", "4", "5"].includes(event.key);
+      if (event.key === "PrintScreen" || macCapture) engage();
+    };
+
+    const onBlur = () => {
+      window.clearTimeout(releaseId);
+      setCaptureGuard(true);
+    };
+
+    const onFocus = () => {
+      window.clearTimeout(releaseId);
+      releaseId = window.setTimeout(() => setCaptureGuard(false), 350);
+    };
+
+    const onVisibility = () => {
+      if (document.visibilityState === "hidden") onBlur();
+      else onFocus();
+    };
+
+    window.addEventListener("keydown", onKeyDown, true);
+    window.addEventListener("blur", onBlur);
+    window.addEventListener("focus", onFocus);
+    document.addEventListener("visibilitychange", onVisibility);
+
+    return () => {
+      window.clearTimeout(releaseId);
+      window.removeEventListener("keydown", onKeyDown, true);
+      window.removeEventListener("blur", onBlur);
+      window.removeEventListener("focus", onFocus);
+      document.removeEventListener("visibilitychange", onVisibility);
+    };
+  }, []);
+
+  // The class lives on <html> so the open-post dialog, which Radix portals
+  // outside this component, is blurred too.
+  useEffect(() => {
+    const root = document.documentElement;
+    root.classList.toggle("rcess-capture-guard", captureGuard);
+
+    return () => root.classList.remove("rcess-capture-guard");
+  }, [captureGuard]);
 
   useEffect(() => {
     if (tab !== "profile" || isGuest || !session.username) return;
@@ -2485,6 +2650,29 @@ export default function Dashboard() {
     });
   }
 
+  function updateStandingPoints(bracket: Bracket, team: string, rawValue: string) {
+    if (!canEditBrackets) {
+      toast("No permission to edit Bracketing");
+      return;
+    }
+
+    const parsed = rawValue.trim() === "" ? 0 : Number(rawValue);
+    const points = Number.isFinite(parsed) ? parsed : 0;
+
+    const nextBrackets = store.brackets.map((current) => {
+      if (current.id !== bracket.id) return current;
+
+      const draft = JSON.parse(JSON.stringify(current)) as Bracket;
+      draft.standings = standingsOf(draft).map((row) =>
+        row.team === team ? { ...row, points } : row,
+      );
+
+      return draft;
+    });
+
+    commitIfBracketsAllowed({ ...store, brackets: nextBrackets });
+  }
+
   const latestNews = store.news[0];
   const accountButtonClass = (key: string) =>
     tab === key
@@ -2493,6 +2681,20 @@ export default function Dashboard() {
   const summitItems: (SummitInfo & { id: string })[] =
     ((store as any).summits as (SummitInfo & { id: string })[] | undefined) ??
     (store.summit ? [{ ...store.summit, id: "legacy-summit" }] : []);
+
+  // The category scope narrows the event dropdown and the bracket list; a
+  // category that no longer exists falls back to showing everything.
+  const bracketCategoryScope =
+    store.settings.events.find((category) => category.name === bracketCategoryFilter) ?? null;
+  const bracketEventFilter = !bracketCategoryScope ||
+    bracketCategoryScope.events.some((event) => event.name === bracketSportFilter)
+    ? bracketSportFilter
+    : "ALL";
+  const visibleBrackets = store.brackets.filter((bracket) => {
+    const category = categoryOfEvent(store.settings.events, bracket.sport);
+    if (bracketCategoryScope && category?.name !== bracketCategoryScope.name) return false;
+    return bracketEventFilter === "ALL" || bracket.sport === bracketEventFilter;
+  });
 
   return (
     <div className="relative min-h-screen overflow-hidden bg-[#030530] text-white">
@@ -2847,7 +3049,8 @@ export default function Dashboard() {
                           <div
                             key={post.id}
                             data-tour-target={index === 0 ? "feed-post" : undefined}
-                            className="rounded-2xl border border-white/10 bg-black/25 p-5 md:p-6"
+                            onContextMenu={(event) => event.preventDefault()}
+                            className="rcess-feed-post rounded-2xl border border-white/10 bg-black/25 p-5 md:p-6"
                           >
                             <div className={post.imagePaths.length > 1 ? "grid gap-3 sm:grid-cols-2" : ""}>
                               {post.imagePaths.map((path) => (
@@ -3403,10 +3606,19 @@ export default function Dashboard() {
                   <div className="rounded-2xl border border-white/10 bg-black/25 p-5 md:p-6">
                     {(() => {
                       const leaderboardCategories = ["Overall", ...store.settings.sports];
-                      const activeLeaderboardRows = store.leaderboard
-                        .filter((row) => (row.sport ?? "Overall") === leaderboardSportFilter)
+                      const categoryScores = categoryScoreRows(store);
+                      const categoryViews = store.settings.events
+                        .filter((category) => category.events.length)
+                        .map((category) => categoryView(category.name));
+                      const scoreViewOptions = ["Overall", ...categoryViews, ...store.settings.sports];
+                      const activeScoreView = scoreViewOptions.includes(leaderboardSportFilter)
+                        ? leaderboardSportFilter
+                        : "Overall";
+
+                      const activeLeaderboardRows = [...store.leaderboard, ...categoryScores]
+                        .filter((row) => (row.sport ?? "Overall") === activeScoreView)
                         .slice()
-                        .sort((a, b) => b.points - a.points);
+                        .sort((a, b) => b.points - a.points || a.team.localeCompare(b.team));
 
                       const payouts = payoutsForBrackets(store);
                       const previewOverall = leaderboardWithPayouts(store, payouts)
@@ -3422,19 +3634,44 @@ export default function Dashboard() {
 
                               <div className="mt-4 flex flex-wrap items-center gap-3">
                                 <div className="text-xs tracking-[0.18em] text-white/50">SCORE VIEW</div>
-                                <Select value={leaderboardSportFilter} onValueChange={(v) => setLeaderboardSportFilter(v as any)}>
+                                <Select value={activeScoreView} onValueChange={(v) => setLeaderboardSportFilter(v as any)}>
                                   <SelectTrigger className="h-9 w-full sm:w-[240px] bg-black/30 border-white/15 text-white">
                                     <SelectValue placeholder="Select score view" />
                                   </SelectTrigger>
                                   <SelectContent>
-                                    {leaderboardCategories.map((category) => (
-                                      <SelectItem key={category} value={category}>
-                                        {category === "Overall" ? "Overall score" : `${category} score`}
-                                      </SelectItem>
-                                    ))}
+                                    <SelectItem value="Overall">Overall score</SelectItem>
+                                    {categoryViews.length ? (
+                                      <SelectGroup>
+                                        <SelectLabel>Category totals</SelectLabel>
+                                        {store.settings.events
+                                          .filter((category) => category.events.length)
+                                          .map((category) => (
+                                            <SelectItem
+                                              key={`cat-${category.id}`}
+                                              value={categoryView(category.name)}
+                                            >
+                                              {category.name} · all events
+                                            </SelectItem>
+                                          ))}
+                                      </SelectGroup>
+                                    ) : null}
+                                    <SelectGroup>
+                                      <SelectLabel>Event scores</SelectLabel>
+                                      {store.settings.sports.map((sport) => (
+                                        <SelectItem key={sport} value={sport}>
+                                          {scoreViewLabel(sport)}
+                                        </SelectItem>
+                                      ))}
+                                    </SelectGroup>
                                   </SelectContent>
                                 </Select>
                               </div>
+
+                              {isCategoryView(activeScoreView) ? (
+                                <div className="mt-2 text-xs text-white/35">
+                                  Every {categoryViewLabel(activeScoreView)} event added up per team.
+                                </div>
+                              ) : null}
                             </div>
 
                             <div className="flex flex-wrap items-center justify-end gap-2">
@@ -3552,12 +3789,14 @@ export default function Dashboard() {
                                     <label className="text-xs tracking-[0.18em] text-white/60">SCORE VIEW</label>
                                     <select
                                       id="lb-sport"
-                                      defaultValue={leaderboardSportFilter}
+                                      defaultValue={
+                                        leaderboardCategories.includes(activeScoreView) ? activeScoreView : "Overall"
+                                      }
                                       className="h-10 rounded-md border border-white/15 bg-black/30 px-3 text-sm text-white"
                                     >
                                       {leaderboardCategories.map((category) => (
                                         <option key={category} value={category} className="bg-black text-white">
-                                          {category === "Overall" ? "Overall score" : `${category} score`}
+                                          {scoreViewLabel(category)}
                                         </option>
                                       ))}
                                     </select>
@@ -3578,7 +3817,7 @@ export default function Dashboard() {
                                         const sportEl = document.getElementById('lb-sport') as HTMLSelectElement | null;
                                         const teamEl = document.getElementById('lb-team') as HTMLInputElement | null;
                                         const ptsEl = document.getElementById('lb-points') as HTMLInputElement | null;
-                                        const sport = (sportEl?.value ?? leaderboardSportFilter) || "Overall";
+                                        const sport = (sportEl?.value ?? activeScoreView) || "Overall";
                                         const team = (teamEl?.value ?? '').trim();
                                         const points = Number(ptsEl?.value ?? 0);
                                         if (!team) {
@@ -3616,12 +3855,12 @@ export default function Dashboard() {
                                   <div>
                                     <div className="text-sm font-medium">{row.team}</div>
                                     <div className="text-xs text-white/45">
-                                      Points: {row.points} • {row.sport === "Overall" ? "Overall score" : `${row.sport} score`}
+                                      Points: {row.points} • {scoreViewLabel(row.sport ?? "Overall")}
                                     </div>
                                   </div>
                                 </div>
 
-                                {!isReadOnly ? (
+                                {!isReadOnly && !isCategoryView(row.sport ?? "") ? (
                                   <div className="flex items-center gap-2">
                                     <Dialog>
                                       <DialogTrigger asChild>
@@ -3649,7 +3888,7 @@ export default function Dashboard() {
                                             >
                                               {leaderboardCategories.map((category) => (
                                                 <option key={category} value={category} className="bg-black text-white">
-                                                  {category === "Overall" ? "Overall score" : `${category} score`}
+                                                  {scoreViewLabel(category)}
                                                 </option>
                                               ))}
                                             </select>
@@ -3728,7 +3967,9 @@ export default function Dashboard() {
 
                             {activeLeaderboardRows.length === 0 ? (
                               <div className="text-sm text-white/45">
-                                No {leaderboardSportFilter === "Overall" ? "overall" : leaderboardSportFilter} leaderboard rows yet.
+                                {isCategoryView(activeScoreView)
+                                  ? `No ${categoryViewLabel(activeScoreView)} points yet. Event scores appear here once they are applied.`
+                                  : `No ${activeScoreView === "Overall" ? "overall" : activeScoreView} leaderboard rows yet.`}
                               </div>
                             ) : null}
                           </div>
@@ -3747,13 +3988,40 @@ export default function Dashboard() {
                         
 
                         <div className="mt-4 flex flex-wrap items-center gap-3">
+                          <div className="text-xs tracking-[0.18em] text-white/50">CATEGORY</div>
+                          <Select
+                            value={bracketCategoryScope ? bracketCategoryScope.name : "ALL"}
+                            onValueChange={(v) => {
+                              setBracketCategoryFilter(v);
+                              const nextCategory =
+                                store.settings.events.find((category) => category.name === v) ?? null;
+                              if (
+                                bracketSportFilter !== "ALL" &&
+                                (!nextCategory ||
+                                  !nextCategory.events.some((event) => event.name === bracketSportFilter))
+                              ) {
+                                setBracketSportFilter("ALL");
+                              }
+                            }}
+                          >
+                            <SelectTrigger className="h-9 w-full sm:w-[190px] bg-black/30 border-white/15 text-white">
+                              <SelectValue placeholder="All categories" />
+                            </SelectTrigger>
+                            <SelectContent className="max-h-80">
+                              <SelectItem value="ALL">All categories</SelectItem>
+                              {store.settings.events
+                                .filter((category) => category.events.length)
+                                .map((category) => (
+                                  <SelectItem key={category.id} value={category.name}>
+                                    {category.name}
+                                  </SelectItem>
+                                ))}
+                            </SelectContent>
+                          </Select>
+
                           <div className="text-xs tracking-[0.18em] text-white/50">EVENT</div>
                           <Select
-                            value={
-                              bracketSportFilter !== "ALL" && !store.settings.sports.includes(bracketSportFilter)
-                                ? "ALL"
-                                : bracketSportFilter
-                            }
+                            value={bracketEventFilter}
                             onValueChange={(v) => setBracketSportFilter(v as any)}
                           >
                             <SelectTrigger className="h-9 w-full sm:w-[220px] bg-black/30 border-white/15 text-white">
@@ -3761,18 +4029,23 @@ export default function Dashboard() {
                             </SelectTrigger>
                             <SelectContent className="max-h-80">
                               <SelectItem value="ALL">All events</SelectItem>
-                              {store.settings.events.map((category) =>
-                                category.events.length ? (
-                                  <SelectGroup key={category.id}>
-                                    <SelectLabel>{category.name}</SelectLabel>
-                                    {category.events.map((event) => (
-                                      <SelectItem key={event.id} value={event.name}>
-                                        {event.name}
-                                      </SelectItem>
-                                    ))}
-                                  </SelectGroup>
-                                ) : null,
-                              )}
+                              {store.settings.events
+                                .filter(
+                                  (category) =>
+                                    !bracketCategoryScope || category.name === bracketCategoryScope.name,
+                                )
+                                .map((category) =>
+                                  category.events.length ? (
+                                    <SelectGroup key={category.id}>
+                                      <SelectLabel>{category.name}</SelectLabel>
+                                      {category.events.map((event) => (
+                                        <SelectItem key={event.id} value={event.name}>
+                                          {event.name}
+                                        </SelectItem>
+                                      ))}
+                                    </SelectGroup>
+                                  ) : null,
+                                )}
                             </SelectContent>
                           </Select>
 
@@ -3824,9 +4097,7 @@ export default function Dashboard() {
                     </div>
 
                     <div className="mt-5 grid gap-4">
-                      {store.brackets
-                        .filter((b) => bracketSportFilter === "ALL" || b.sport === bracketSportFilter)
-                        .map((b) => {
+                      {visibleBrackets.map((b) => {
                         const bracketCategory = categoryOfEvent(store.settings.events, b.sport);
                         return (
                         <div key={b.id} className="rounded-xl border border-white/10 bg-black/30 p-4">
@@ -3834,7 +4105,7 @@ export default function Dashboard() {
                             <div>
                               <div className="text-sm font-semibold">{b.name}</div>
                               <div className="mt-1 text-xs text-white/45">
-                                Event: {b.sport} • Format: {b.format === "double" ? "Double elimination" : "Single elimination"}
+                                Event: {b.sport} • Format: {bracketFormatLabel(b.format)}
                               </div>
                               {bracketCategory?.placements.length ? (
                                 <div className="mt-1 text-xs text-white/40">
@@ -3899,6 +4170,15 @@ export default function Dashboard() {
                             </div>
                           </div>
 
+                          {b.format === "points" ? (
+                            <PointsRanking
+                              bracket={b}
+                              category={bracketCategory}
+                              canEdit={canEditBrackets}
+                              onPoints={(team, rawValue) => updateStandingPoints(b, team, rawValue)}
+                            />
+                          ) : (
+                          <>
                           {/* Winners bracket */}
                           {b.format === "double" ? (
                             <div className="mt-4 text-xs tracking-[0.25em] text-white/55">WINNERS BRACKET</div>
@@ -3976,12 +4256,18 @@ export default function Dashboard() {
                               ) : null}
                             </div>
                           ) : null}
+                          </>
+                          )}
                         </div>
                         );
                       })}
 
-                      {store.brackets.filter((b) => bracketSportFilter === "ALL" || b.sport === bracketSportFilter).length === 0 ? (
-                        <div className="text-sm text-white/45">No brackets for this event yet.</div>
+                      {visibleBrackets.length === 0 ? (
+                        <div className="text-sm text-white/45">
+                          {bracketCategoryScope
+                            ? `No brackets in ${bracketCategoryScope.name} yet.`
+                            : "No brackets for this event yet."}
+                        </div>
                       ) : null}
                     </div>
                   </div>
@@ -4347,7 +4633,7 @@ export default function Dashboard() {
                               onClick={() => setOpenFeedPost(post)}
                               onContextMenu={(event) => event.preventDefault()}
                               aria-label="Open post"
-                              className="flex w-full cursor-zoom-in items-start gap-4 rounded-xl border border-white/10 bg-black/20 p-3 text-left hover:border-cyan-300/40"
+                              className="rcess-feed-post flex w-full cursor-zoom-in items-start gap-4 rounded-xl border border-white/10 bg-black/20 p-3 text-left hover:border-cyan-300/40"
                             >
                               {post.imagePaths.length ? (
                                 <img
@@ -4841,7 +5127,10 @@ export default function Dashboard() {
                   }
                 }}
               >
-                <DialogContent className="max-h-[90vh] overflow-y-auto border-white/15 bg-black/85 text-white">
+                <DialogContent
+                  onContextMenu={(event) => event.preventDefault()}
+                  className="rcess-feed-post max-h-[90vh] overflow-y-auto border-white/15 bg-black/85 text-white"
+                >
                   <DialogHeader><DialogTitle>Feed post</DialogTitle></DialogHeader>
                   {openFeedPost ? (
                     <div className="grid gap-3">

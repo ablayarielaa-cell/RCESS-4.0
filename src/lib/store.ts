@@ -274,7 +274,12 @@ export type BracketRound = {
   matches: Match[];
 };
 
-export type BracketFormat = "single" | "double";
+export type BracketFormat = "single" | "double" | "points";
+
+export type PointsStanding = {
+  team: string;
+  points: number;
+};
 
 export type Bracket = {
   id: string;
@@ -285,6 +290,10 @@ export type Bracket = {
   rounds: BracketRound[];
   losersRounds?: BracketRound[];
   grandFinal?: Match;
+
+  // Points events (quiz bee and the like) have no draw. Everyone is ranked by
+  // this score instead, and the ranking decides the award tiers.
+  standings?: PointsStanding[];
 };
 
 export type Store = {
@@ -475,7 +484,75 @@ function loserOf(match: Match | undefined): string | null {
   return match.winner === "a" ? match.b.team : match.winner === "b" ? match.a.team : null;
 }
 
+// The score table of a points event, with every team in the roster present even
+// if the admin has not typed a score for it yet.
+export function standingsOf(bracket: Bracket): PointsStanding[] {
+  const recorded = new Map(
+    (bracket.standings ?? []).map((row) => [row.team, pointsOf(row.points)]),
+  );
+
+  return bracket.teams.map((team) => ({ team, points: recorded.get(team) ?? 0 }));
+}
+
+export type RankedStanding = PointsStanding & {
+  rank: number;
+  label: string | null;
+  awardPoints: number | null;
+};
+
+// Highest score first. Tied teams share a rank and an award tier, so two teams
+// on the same top score are both champions and the next team skips a tier.
+export function rankedStandings(
+  bracket: Bracket,
+  category: EventCategory | null,
+): RankedStanding[] {
+  const sorted = standingsOf(bracket)
+    .slice()
+    .sort((a, b) => b.points - a.points);
+
+  const ranked: RankedStanding[] = [];
+  let index = 0;
+
+  while (index < sorted.length) {
+    let end = index;
+    while (end < sorted.length && sorted[end].points === sorted[index].points) end++;
+
+    const placement = sorted[index].points > 0 ? category?.placements[index] : undefined;
+
+    for (let i = index; i < end; i++) {
+      ranked.push({
+        ...sorted[i],
+        rank: index + 1,
+        label: placement?.label ?? null,
+        awardPoints: placement?.points ?? null,
+      });
+    }
+
+    index = end;
+  }
+
+  return ranked;
+}
+
+function pointsPayout(bracket: Bracket, category: EventCategory): PayoutRow[] {
+  const ranked = rankedStandings(bracket, category);
+
+  // An untouched score table has not decided the event yet, so nothing is paid.
+  if (!ranked.some((row) => row.points > 0)) return [];
+
+  return ranked
+    .map((row) => {
+      if (row.label !== null && row.awardPoints !== null) {
+        return { team: row.team, points: row.awardPoints, reason: row.label };
+      }
+      return { team: row.team, points: category.entryPoints, reason: "Entry" };
+    })
+    .filter((row) => row.points !== 0);
+}
+
 function bracketPayout(bracket: Bracket, category: EventCategory): PayoutRow[] {
+  if (bracket.format === "points") return pointsPayout(bracket, category);
+
   const rows: PayoutRow[] = [];
   const placed = new Set<string>();
 
@@ -606,6 +683,50 @@ export function leaderboardWithPayouts(store: Store, payouts: EventPayout[]): Sc
   }));
 
   return [...kept, ...overallRows, ...eventRows];
+}
+
+// A category view totals every event score inside one category ("Sports",
+// "Academics"), so the standings can answer who has the most points across all
+// sports events. The prefix keeps the view apart from an event of the same name.
+export const CATEGORY_VIEW_PREFIX = "Category: ";
+
+export function categoryView(categoryName: string): string {
+  return `${CATEGORY_VIEW_PREFIX}${categoryName}`;
+}
+
+export function isCategoryView(view: string): boolean {
+  return view.startsWith(CATEGORY_VIEW_PREFIX);
+}
+
+export function categoryViewLabel(view: string): string {
+  return view.slice(CATEGORY_VIEW_PREFIX.length);
+}
+
+// Computed at render time from the event rows on record, so it always matches
+// what the leaderboard currently shows and never needs its own storage.
+export function categoryScoreRows(store: Store): ScoreRow[] {
+  const rows: ScoreRow[] = [];
+
+  for (const category of store.settings.events) {
+    const names = new Set(category.events.map((event) => event.name));
+    const perTeam = new Map<string, number>();
+
+    for (const row of store.leaderboard) {
+      if (!names.has(row.sport)) continue;
+      perTeam.set(row.team, (perTeam.get(row.team) ?? 0) + row.points);
+    }
+
+    for (const [team, points] of perTeam) {
+      rows.push({
+        id: `${category.id}:${team}`,
+        team,
+        points,
+        sport: categoryView(category.name),
+      });
+    }
+  }
+
+  return rows;
 }
 
 export function determineWinnerAuto(m: Match): Match["winner"] {
@@ -1120,7 +1241,29 @@ export function migrateStore(parsed: any): Store {
     const detectedFormat: any =
       b?.format ?? (Array.isArray(b?.losersRounds) ? "double" : "single");
 
-    const format = detectedFormat === "double" ? "double" : "single";
+    const format: BracketFormat =
+      detectedFormat === "double" || detectedFormat === "points" ? detectedFormat : "single";
+
+    if (format === "points") {
+      const recorded = new Map<string, number>(
+        (Array.isArray(b?.standings) ? b.standings : []).map(
+          (row: { team?: unknown; points?: unknown }) => [
+            String(row?.team ?? ""),
+            pointsOf(row?.points),
+          ],
+        ),
+      );
+
+      return {
+        id: String(b?.id ?? nanoId()),
+        sport: (b?.sport as Sport) ?? "Basketball",
+        name: String(b?.name ?? "Bracket"),
+        format,
+        teams,
+        rounds: [],
+        standings: teams.map((team) => ({ team, points: recorded.get(team) ?? 0 })),
+      } satisfies Bracket;
+    }
 
     if (Array.isArray(b?.rounds) && Array.isArray(b?.teams)) {
       const base: Bracket = {

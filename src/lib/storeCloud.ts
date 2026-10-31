@@ -107,6 +107,7 @@ export async function fetchStore(): Promise<Store> {
       rounds: row.rounds,
       losersRounds: row.losers_rounds,
       grandFinal: row.grand_final,
+      standings: row.standings ?? undefined,
     })),
 
     evaluation: evaluation
@@ -307,6 +308,7 @@ async function writeModule(key: ModuleKey, store: Store): Promise<WriteOutcome> 
     rounds: bracket.rounds,
     losers_rounds: bracket.losersRounds ?? null,
     grand_final: bracket.grandFinal ?? null,
+    standings: bracket.format === "points" ? (bracket.standings ?? []) : null,
   }));
   await syncCollection(table, rows);
   return "stored";

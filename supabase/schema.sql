@@ -198,12 +198,20 @@ create table if not exists public.brackets (
   sport text not null default 'Basketball',
   name text not null default 'Bracket',
   format text not null default 'single'
-    check (format in ('single', 'double')),
+    check (format in ('single', 'double', 'points')),
   teams text[] not null default '{}',
   rounds jsonb not null default '[]'::jsonb,
   losers_rounds jsonb,
-  grand_final jsonb
+  grand_final jsonb,
+  standings jsonb
 );
+
+-- Projects created before points events existed: widen the format check and add
+-- the score table used by "points" brackets (quiz bee, quiz bowl).
+alter table public.brackets add column if not exists standings jsonb;
+alter table public.brackets drop constraint if exists brackets_format_check;
+alter table public.brackets add constraint brackets_format_check
+  check (format in ('single', 'double', 'points'));
 
 -- News Feed ------------------------------------------------------------------
 -- Viewers post one or more pictures with or without a caption; everyone signed

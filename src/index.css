@@ -275,3 +275,25 @@
   -webkit-touch-callout: none;
   pointer-events: none;
 }
+
+/* Capture guard: while the sheet is up (app switched away, screenshot key,
+   print preview) every feed picture drops out of focus, so whatever an
+   external recorder grabs shows a blurred frame instead of the photo. */
+.rcess-capture-guard .rcess-feed-photo {
+  filter: blur(22px) saturate(0.6);
+}
+
+/* The surrounding post kills the long-press callout and text selection, so a
+   phone user cannot lift the picture or caption out of the page either. */
+.rcess-feed-post {
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
+}
+
+@media print {
+  .rcess-feed-photo,
+  .rcess-feed-post {
+    display: none !important;
+  }
+}
