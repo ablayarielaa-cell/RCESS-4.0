@@ -439,7 +439,7 @@ function FeedComposer({
 
   return (
     <div className="flex min-h-0 flex-1 flex-col gap-4">
-      <div className="rcess-composer-scroll min-h-0 flex-1 space-y-4 overflow-y-auto">
+      <div className="rcess-scroll min-h-0 flex-1 space-y-4 overflow-y-auto">
         <div className="grid gap-2">
           <label className="text-xs tracking-[0.18em] text-white/60">
             PICTURES (OPTIONAL · UP TO {MAX_FEED_IMAGES})
@@ -3048,25 +3048,39 @@ export default function Dashboard() {
                             onContextMenu={(event) => event.preventDefault()}
                             className="rcess-feed-post rounded-2xl border border-white/10 bg-black/25 p-5 md:p-6"
                           >
-                            <div className={post.imagePaths.length > 1 ? "grid gap-3 sm:grid-cols-2" : ""}>
-                              {post.imagePaths.map((path) => (
-                                <button
-                                  key={path}
-                                  type="button"
-                                  onClick={() => setOpenFeedPost(post)}
-                                  onContextMenu={(event) => event.preventDefault()}
-                                  className="block w-full cursor-zoom-in text-left"
-                                  aria-label="Open post"
-                                >
-                                  <img
-                                    src={feedImageUrl(path)}
-                                    alt={post.caption || `Picture from ${post.postedBy}`}
-                                    loading="lazy"
-                                    draggable={false}
-                                    className="rcess-feed-photo max-h-[28rem] w-full rounded-xl border border-white/10 object-contain"
-                                  />
-                                </button>
-                              ))}
+                            <div className={post.imagePaths.length > 1 ? "grid grid-cols-2 gap-3" : ""}>
+                              {post.imagePaths.slice(0, 2).map((path, photoIndex, preview) => {
+                                const hiddenCount = post.imagePaths.length - preview.length;
+                                const showsMore = hiddenCount > 0 && photoIndex === preview.length - 1;
+
+                                return (
+                                  <button
+                                    key={path}
+                                    type="button"
+                                    onClick={() => setOpenFeedPost(post)}
+                                    onContextMenu={(event) => event.preventDefault()}
+                                    className="relative block w-full cursor-zoom-in text-left"
+                                    aria-label={showsMore ? `Open post — ${hiddenCount} more pictures` : "Open post"}
+                                  >
+                                    <img
+                                      src={feedImageUrl(path)}
+                                      alt={post.caption || `Picture from ${post.postedBy}`}
+                                      loading="lazy"
+                                      draggable={false}
+                                      className={
+                                        post.imagePaths.length > 1
+                                          ? "rcess-feed-photo aspect-square w-full rounded-xl border border-white/10 object-cover"
+                                          : "rcess-feed-photo max-h-[28rem] w-full rounded-xl border border-white/10 object-contain"
+                                      }
+                                    />
+                                    {showsMore ? (
+                                      <span className="pointer-events-none absolute right-2 top-2 rounded-full border border-white/15 bg-black/70 px-2.5 py-1 text-[10px] uppercase tracking-[0.12em] text-white/80">
+                                        +{hiddenCount} more
+                                      </span>
+                                    ) : null}
+                                  </button>
+                                );
+                              })}
                             </div>
                             {post.imagePaths.length === 0 ? (
                               <button
@@ -5125,7 +5139,7 @@ export default function Dashboard() {
               >
                 <DialogContent
                   onContextMenu={(event) => event.preventDefault()}
-                  className="rcess-feed-post max-h-[90vh] overflow-y-auto border-white/15 bg-black/85 text-white"
+                  className="rcess-feed-post rcess-scroll max-h-[90vh] overflow-y-auto border-white/15 bg-black/85 text-white"
                 >
                   <DialogHeader><DialogTitle>Feed post</DialogTitle></DialogHeader>
                   {openFeedPost ? (
@@ -5174,7 +5188,7 @@ export default function Dashboard() {
                   if (!open) setDownloadFeedPost(null);
                 }}
               >
-                <DialogContent className="max-h-[90vh] overflow-y-auto border-white/15 bg-black/85 text-white">
+                <DialogContent className="rcess-scroll max-h-[90vh] overflow-y-auto border-white/15 bg-black/85 text-white">
                   <DialogHeader><DialogTitle>Download picture</DialogTitle></DialogHeader>
                   {downloadFeedPost ? (
                     <div className="grid gap-3">
