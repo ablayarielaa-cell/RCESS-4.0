@@ -1738,7 +1738,7 @@ function BracketRoundColumns({
   ) => void;
 }) {
   return (
-    <div className="overflow-x-auto">
+    <div className="rcess-scroll-x overflow-x-auto">
       <div className="flex w-max min-w-full items-start gap-4">
         {rounds.map((round, roundIndex) => (
           <div
@@ -4106,7 +4106,7 @@ export default function Dashboard() {
                       ) : null}
                     </div>
 
-                    <div className="mt-5 grid gap-4">
+                    <div className="mt-5 grid gap-4 [grid-template-columns:minmax(0,1fr)]">
                       {visibleBrackets.map((b) => {
                         const bracketCategory = categoryOfEvent(store.settings.events, b.sport);
                         return (

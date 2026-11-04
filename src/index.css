@@ -297,34 +297,71 @@
   max-height: 90dvh;
 }
 
-/* The composer's own scrollbar, drawn to match the portal chrome: a slim
-   cyan thumb over a barely-there track instead of the browser's grey bar.
-   The gutter is reserved so the dialog does not jump as pictures are added. */
-.rcess-scroll {
+/* Scrollbars, portal-wide: a slim translucent-cyan thumb over a barely-there
+   track instead of the browser's grey bar. `.rcess-scroll` is for vertical
+   dialog bodies and reserves a gutter so they do not jump as content grows;
+   `.rcess-scroll-x` is for the horizontally scrolling bracket strips, which
+   must not reserve space. */
+.rcess-scroll,
+.rcess-scroll-x {
   scrollbar-width: thin;
   scrollbar-color: oklch(0.8 0.13 205 / 0.5) transparent;
+}
+.rcess-scroll {
   scrollbar-gutter: stable;
 }
-.rcess-scroll::-webkit-scrollbar {
+.rcess-scroll::-webkit-scrollbar,
+.rcess-scroll-x::-webkit-scrollbar {
   width: 10px;
+  height: 10px;
 }
 .rcess-scroll::-webkit-scrollbar-track {
   margin-block: 4px;
   border-radius: 999px;
   background: oklch(1 0 0 / 0.045);
 }
-.rcess-scroll::-webkit-scrollbar-thumb {
+.rcess-scroll-x::-webkit-scrollbar-track {
+  margin-inline: 4px;
+  border-radius: 999px;
+  background: oklch(1 0 0 / 0.045);
+}
+.rcess-scroll::-webkit-scrollbar-thumb,
+.rcess-scroll-x::-webkit-scrollbar-thumb {
   border-radius: 999px;
   border: 2px solid transparent;
   background: oklch(0.8 0.13 205 / 0.5);
   background-clip: padding-box;
 }
-.rcess-scroll::-webkit-scrollbar-thumb:hover {
+.rcess-scroll::-webkit-scrollbar-thumb:hover,
+.rcess-scroll-x::-webkit-scrollbar-thumb:hover {
   background: oklch(0.85 0.14 205 / 0.8);
   background-clip: padding-box;
 }
-.rcess-scroll::-webkit-scrollbar-corner {
+.rcess-scroll::-webkit-scrollbar-corner,
+.rcess-scroll-x::-webkit-scrollbar-corner {
   background: transparent;
+}
+
+/* The document's own scrollbar follows the same chrome, over the page itself. */
+html {
+  scrollbar-width: thin;
+  scrollbar-color: oklch(0.8 0.13 205 / 0.5) transparent;
+}
+html::-webkit-scrollbar {
+  width: 10px;
+}
+html::-webkit-scrollbar-track {
+  background: transparent;
+}
+html::-webkit-scrollbar-thumb {
+  border-radius: 999px;
+  border: 2px solid transparent;
+  background: oklch(0.8 0.13 205 / 0.5);
+  background-clip: padding-box;
+}
+html::-webkit-scrollbar-thumb:hover {
+  background: oklch(0.85 0.14 205 / 0.8);
+  background-clip: padding-box;
 }
 
 @media print {
